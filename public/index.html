@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Biblioteca Web</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lora:wght@600;700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a class="logo" href="#">Biblioteca</a>
+
+    <nav id="nav" class="nav oculto">
+      <button data-vista="catalogo" class="activo">Catálogo</button>
+      <button data-vista="mis-prestamos">Mis préstamos</button>
+      <button data-vista="admin-libros" class="solo-admin">Libros</button>
+      <button data-vista="admin-prestamos" class="solo-admin">Préstamos</button>
+      <button data-vista="admin-usuarios" class="solo-admin">Usuarios</button>
+    </nav>
+
+    <div id="sesion" class="sesion oculto">
+      <span id="nombre-usuario">Nombre</span>
+      <button id="btn-salir" class="btn btn-secundario">Cerrar sesión</button>
+    </div>
+  </header>
+
+  <main class="contenedor">
+
+    <section id="auth" class="vista activa">
+      <div class="auth-caja">
+        <h1>Bienvenido</h1>
+        <p class="sub">Inicia sesión o crea una cuenta para pedir libros prestados.</p>
+
+        <div class="tabs">
+          <button class="tab activo" data-form="form-login">Iniciar sesión</button>
+          <button class="tab" data-form="form-registro">Registrarse</button>
+        </div>
+
+        <form id="form-login" class="form">
+          <label>Correo
+            <input type="email" name="email" required>
+          </label>
+          <label>Contraseña
+            <input type="password" name="password" required>
+          </label>
+          <button class="btn" type="submit">Iniciar sesión</button>
+        </form>
+
+        <form id="form-registro" class="form oculto">
+          <label>Nombre
+            <input type="text" name="nombre" required>
+          </label>
+          <label>Correo
+            <input type="email" name="email" required>
+          </label>
+          <label>Contraseña
+            <input type="password" name="password" minlength="6" required>
+          </label>
+          <button class="btn" type="submit">Crear cuenta</button>
+        </form>
+
+        <p id="auth-mensaje" class="mensaje" role="alert"></p>
+      </div>
+    </section>
+
+    <section id="catalogo" class="vista">
+      <div class="encabezado">
+        <h2>Catálogo de libros</h2>
+        <input id="buscador" type="search" placeholder="Buscar por título">
+      </div>
+      <div id="lista-libros" class="grid"></div>
+    </section>
+
+    <section id="mis-prestamos" class="vista">
+      <h2>Mis préstamos</h2>
+      <div class="tabla-wrap">
+        <table>
+          <thead>
+            <tr><th>Código</th><th>Libro</th><th>Fecha préstamo</th><th>Fecha devolución</th><th>Estado</th></tr>
+          </thead>
+          <tbody id="tbody-mis-prestamos"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="admin-libros" class="vista">
+      <h2>Gestionar libros</h2>
+
+      <form id="form-libro" class="form form-fila">
+        <input type="hidden" name="id">
+        <label>Título <input type="text" name="titulo" required></label>
+        <label>Autor <input type="text" name="autor" required></label>
+        <label>Categoría <input type="text" name="categoria"></label>
+        <label>Cantidad <input type="number" name="cantidad" min="0" value="1" required></label>
+        <button class="btn" type="submit">Guardar libro</button>
+      </form>
+
+      <div class="tabla-wrap">
+        <table>
+          <thead>
+            <tr><th>ID</th><th>Título</th><th>Autor</th><th>Categoría</th><th>Cantidad</th><th>Acciones</th></tr>
+          </thead>
+          <tbody id="tbody-libros"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="admin-prestamos" class="vista">
+      <h2>Todos los préstamos</h2>
+      <div class="tabla-wrap">
+        <table>
+          <thead>
+            <tr><th>Código</th><th>Usuario</th><th>Libro</th><th>Estado</th><th>Acciones</th></tr>
+          </thead>
+          <tbody id="tbody-prestamos"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="admin-usuarios" class="vista">
+      <h2>Gestionar usuarios</h2>
+      <div class="tabla-wrap">
+        <table>
+          <thead>
+            <tr><th>ID</th><th>Nombre</th><th>Correo</th><th>Rol</th><th>Acciones</th></tr>
+          </thead>
+          <tbody id="tbody-usuarios"></tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="pie">Sistema de Gestión de Biblioteca · Desarrollo de Aplicaciones Web</footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
