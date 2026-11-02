@@ -30,7 +30,6 @@ function seleccionar(elemento) {
 function actualizarSesion() {
   usuario = usuarioGuardado();
   const autenticado = Boolean(tokenGuardado() && usuario);
-  document.getElementById('auth').classList.toggle('activa', !autenticado);
   document.getElementById('nav').classList.toggle('oculto', !autenticado);
   document.getElementById('sesion').classList.toggle('oculto', !autenticado);
 
@@ -39,26 +38,54 @@ function actualizarSesion() {
     document.querySelectorAll('.solo-admin').forEach((elemento) => {
       elemento.classList.toggle('oculto', usuario.rol !== 'admin');
     });
-    seleccionar('catalogo');
+    document.querySelectorAll('.solo-usuario').forEach((elemento) => {
+      elemento.classList.toggle('oculto', usuario.rol !== 'usuario');
+    });
+    seleccionar(usuario.rol === 'admin' ? 'admin-libros' : 'catalogo');
+    if (usuario.rol === 'admin') cargarLibrosAdmin();
+    else cargarCatalogo();
+    return;
   }
+
+  document.querySelectorAll('.vista').forEach((vista) => vista.classList.remove('activa'));
+  document.getElementById('auth').classList.add('activa');
+  document.querySelectorAll('.nav button').forEach((boton) => boton.classList.remove('activo'));
+  mostrarAviso('');
 }
 
 async function cargarCatalogo() {
   try {
     const titulo = document.getElementById('buscador').value.trim();
     const libros = await api(`/libros${titulo ? `?titulo=${encodeURIComponent(titulo)}` : ''}`);
-    document.getElementById('lista-libros').innerHTML = libros.map((libro) => `
-      <article class="libro">
-        <h3>${escaparHtml(libro.titulo)}</h3>
-        <p class="autor">${escaparHtml(libro.autor)}</p>
-        <p class="meta">${escaparHtml(libro.categoria || 'Sin categoría')} · ${libro.cantidad} disponibles</p>
-        <button class="btn" data-solicitar="${libro.id}" ${libro.cantidad < 1 ? 'disabled' : ''}>
-          Solicitar préstamo
-        </button>
+    document.getElementById('lista-libros').innerHTML = libros.map((libro, indice) => `
+      <article class="libro" style="--fondo-libro: url('${fondoLibro(libro, indice)}')">
+        <div class="libro-contenido">
+          <h3>${escaparHtml(libro.titulo)}</h3>
+          <p class="autor">${escaparHtml(libro.autor)}</p>
+          <p class="meta">${escaparHtml(libro.categoria || 'Sin categoría')} · ${libro.cantidad} disponibles</p>
+          <button class="btn" data-solicitar="${libro.id}" ${libro.cantidad < 1 ? 'disabled' : ''}>
+            Solicitar préstamo
+          </button>
+        </div>
       </article>
     `).join('');
   } catch (error) {
     mostrarAviso(error.message);
+  }
+
+  function fondoLibro(libro, indice) {
+    const titulo = libro.titulo.toLowerCase();
+    let archivo;
+
+    if (titulo.includes('cien años')) archivo = '100 Años de soledad.webp';
+    else if (titulo.includes('quijote')) archivo = 'Quijote.jpg';
+    else if (titulo.includes('harry')) archivo = 'Harry.jpg';
+    else {
+      const fondos = ['100 Años de soledad.webp', 'Quijote.jpg', 'Harry.jpg'];
+      archivo = fondos[indice % fondos.length];
+    }
+
+    return `/assets/${encodeURIComponent(archivo)}`;
   }
 }
 
@@ -296,4 +323,3 @@ document.getElementById('form-libro').addEventListener('submit', async (event) =
 });
 
 actualizarSesion();
-if (usuario) cargarCatalogo();
