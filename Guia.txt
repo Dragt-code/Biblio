@@ -1,0 +1,118 @@
+GUIA GENERAL DEL SISTEMA DE BIBLIOTECA
+=====================================
+
+1. OBJETIVO
+-----------
+La aplicación permite gestionar libros, usuarios y préstamos. Los usuarios normales pueden consultar el catálogo, solicitar préstamos y revisar sus solicitudes. Los administradores pueden gestionar libros, aprobar devoluciones y administrar usuarios.
+
+2. ESTRUCTURA PRINCIPAL
+-----------------------
+src/app.js
+Inicia Express, sirve los archivos públicos, conecta con MySQL, sincroniza las tablas y crea la cuenta administrador si todavía no existe.
+
+src/config/db.js
+Crea la conexión Sequelize con los datos DB_HOST, DB_NAME, DB_USER y DB_PASS definidos en .env.
+
+src/models/index.js
+Define las tablas Usuario, Libro y Prestamo. También define sus relaciones:
+- Un usuario puede tener muchos préstamos.
+- Un libro puede tener muchos préstamos.
+- Cada préstamo pertenece a un usuario y a un libro.
+
+src/routes/
+Contienen las rutas HTTP disponibles. Cada ruta indica qué método, dirección y permisos utiliza.
+
+src/controllers/
+Contienen la lógica de autenticación, libros, préstamos y usuarios.
+
+src/middlewares/auth.js
+Verifica el JWT enviado por el navegador y distingue entre usuarios normales y administradores.
+
+public/
+Contiene la interfaz visible, sus estilos y la lógica JavaScript que se ejecuta en el navegador.
+
+3. INICIO DE SESIÓN
+-------------------
+El usuario envía correo y contraseña al endpoint /auth/login.
+
+El servidor busca al usuario y compara la contraseña con bcrypt. Si coincide, genera un JWT que incluye el identificador y el rol.
+
+El navegador guarda el token y el usuario en localStorage. El token se envía en la cabecera Authorization como Bearer <token> en las peticiones protegidas.
+
+4. PROTECCIÓN DE RUTAS
+----------------------
+verificarToken comprueba que exista un JWT válido. Esta función permite identificar al usuario antes de ejecutar una acción.
+
+soloAdmin comprueba que el rol del usuario sea admin. Sin ese rol, la petición recibe un error 403.
+
+Las acciones sensibles de libros y usuarios solamente deben pasar por ambas comprobaciones.
+
+5. FUNCIONAMIENTO DEL CATÁLOGO
+------------------------------
+GET /libros devuelve los libros. El parámetro opcional titulo permite filtrar por coincidencias.
+
+Solo los usuarios normales ven el catálogo. El administrador entra directamente al apartado de Libros y no tiene acceso visual al catálogo ni a “Mis préstamos”.
+
+Los libros se representan con tarjetas creadas dinámicamente por public/app.js mediante innerHTML y datos obtenidos desde la API.
+
+6. SOLICITUD DE PRÉSTAMOS
+-------------------------
+POST /prestamos recibe el identificador de un libro.
+
+El servidor verifica que el libro exista, tenga cantidad disponible y que el usuario no tenga ya una solicitud activa para ese libro.
+
+La solicitud comienza en estado pendiente. El stock todavía no se disminuye porque la solicitud aún no ha sido aprobada.
+
+7. APROBACIÓN Y DEVOLUCIÓN
+--------------------------
+Solo un administrador puede aprobar o devolver préstamos.
+
+Al aprobar un préstamo pendiente:
+- El estado cambia a prestado.
+- Se registra la fecha de préstamo.
+- Se reduce en uno la cantidad disponible del libro.
+
+Al devolver:
+- El estado cambia a devuelto.
+- Se registra la fecha de devolución.
+- Se aumenta en uno la cantidad disponible del libro.
+
+Estas operaciones usan una transacción de Sequelize para actualizar el préstamo y el libro como una unidad coherente. Si ocurre un error, la transacción puede revertirse.
+
+8. ROLES E INTERFAZ
+-------------------
+actualizarSesion() determina si hay una sesión guardada y muestra la interfaz correspondiente.
+
+Los elementos con clase solo-admin solamente se muestran para administradores.
+Los elementos con clase solo-usuario solamente se muestran para usuarios normales.
+
+Después de iniciar sesión:
+- El usuario normal entra al catálogo.
+- El administrador entra directamente a Gestionar libros.
+
+Después de cerrar sesión se eliminan token y usuario de localStorage. Todas las vistas se desactivan y solamente queda activa la sección de autenticación.
+
+9. SEGURIDAD BÁSICA
+-------------------
+- Las contraseñas se guardan con bcrypt, no en texto plano.
+- Las rutas administrativas requieren token y rol admin.
+- Los datos introducidos por el usuario se escapan antes de mostrarlos como HTML desde el navegador.
+- Los tokens usan JWT_SECRET definido en .env.
+
+.env nunca debe compartirse ni subirse a repositorios públicos porque contiene configuración y secretos del servidor.
+
+10. EJECUCIÓN
+-------------
+Instalar dependencias:
+npm install
+
+Iniciar normalmente:
+npm start
+
+Iniciar en modo desarrollo:
+npm run dev
+
+La aplicación requiere MySQL activo, una base de datos biblioteca disponible y las variables configuradas en .env.
+
+URL local:
+http://localhost:3000

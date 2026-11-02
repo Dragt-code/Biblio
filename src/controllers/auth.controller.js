@@ -12,8 +12,12 @@ exports.register = async (req, res) => {
     if (String(password).length < 6)
       return res.status(400).json({ mensaje: 'La contraseña debe tener al menos 6 caracteres' });
 
-    const existe = await Usuario.findOne({ where: { email: correoNormalizado } });
-    if (existe) return res.status(409).json({ mensaje: 'El email ya está registrado' });
+    const existe = await Usuario.findOne({ 
+      where: { email: correoNormalizado } 
+    });
+    if (existe) return res.status(409).json({ 
+      mensaje: 'El email ya está registrado' 
+    });
 
     const hash = await bcrypt.hash(password, 10);
     const u = await Usuario.create({ nombre: nombreNormalizado, email: correoNormalizado, password: hash, rol: 'usuario' });

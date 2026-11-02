@@ -1,0 +1,585 @@
+GUIA TECNICA EXACTA DE LA APLICACION DE BIBLIOTECA
+=================================================
+
+1. TECNOLOGIAS USADAS
+
+Esta es una aplicacion web completa de tres partes:
+
+- Frontend: HTML, CSS y JavaScript nativo, sin React, Angular ni Vue.
+- Backend: Node.js y Express.
+- Base de datos: MySQL.
+- ORM: Sequelize, que permite trabajar con JavaScript en lugar de escribir todo directamente con SQL.
+- Autenticacion: JWT con jsonwebtoken.
+- Contraseñas: bcrypt.
+- Variables de entorno: dotenv.
+- Permisos entre origenes: cors.
+- Desarrollo automatico: nodemon.
+- Llamadas desde el navegador: fetch, Promise, async y await.
+
+Express no organiza obligatoriamente el proyecto como MVC, pero separemos la aplicacion en una estructura similar a MVC:
+
+- Modelos: src/models/index.js
+- Vistas: public/index.html, public/styles.css y public/app.js
+- Controladores: src/controllers/
+- Rutas: src/routes/
+- Middleware o funciones intermedias: src/middlewares/
+
+
+2. FLUJO COMPLETO DE ARRANQUE
+
+Cuando se ejecuta node src/app.js:
+
+1. dotenv.config() carga el archivo .env.
+2. Express crea la aplicacion app.
+3. express.json() permite recibir JSON en req.body.
+4. express.static() publica public/index.html, public/app.js y public/styles.css.
+5. Se registran los prefijos /auth, /libros, /prestamos y /usuarios.
+6. Sequelize autentica la conexion MySQL.
+7. sequelize.sync() crea o actualiza las tablas segun los modelos.
+8. Se busca el usuario administrador predeterminado.
+9. Si no existe, se crea con su contraseña ya cifrada.
+10. app.listen() inicia el servidor en PORT, o en 3000 si PORT no existe.
+
+Ejemplo visible:
+- Al abrir http://localhost:3000 aparece la pantalla de inicio de sesion o registro.
+- Al entrar como administrador aparece directamente Gestionar libros.
+- Al entrar como usuario aparece el Catalogo.
+
+
+3. ESTRUCTURA DE LA INTERFAZ
+
+public/index.html usa secciones con la clase vista:
+
+- auth: inicio de sesion y registro.
+- catalogo: tarjetas de libros.
+- mis-prestamos: tabla exclusiva del usuario normal.
+- admin-libros: formulario y tabla de gestion.
+- admin-prestamos: aprobacion y devolucion.
+- admin-usuarios: gestion de usuarios.
+
+Todas las vistas se ocultan o muestran cambiando la clase CSS activa.
+
+La funcion seleccionar(elemento), en public/app.js, realiza tres acciones repetitivas:
+
+1. Quita activa de todas las vistas.
+2. Agrega activa a la vista solicitada.
+3. Marca su boton de navegacion como activo.
+
+Metodo repetitivo:
+document.querySelectorAll('.vista').forEach(...)
+
+Esto significa "selecciona todos los elementos con esta clase y ejecuta una funcion para cada uno".
+
+Ejemplo:
+- Al pulsar Libros, id="admin-libros" queda visible.
+- Las demas secciones pierden la clase activa.
+- El boton Libros recibe el estilo .activo.
+
+
+4. SESIONES Y LOCALSTORAGE
+
+Las funciones tokenGuardado() y usuarioGuardado(), en public/app.js, son lecturas abreviadas:
+
+- localStorage.getItem('token') devuelve el JWT guardado.
+- localStorage.getItem('usuario') devuelve texto JSON.
+- JSON.parse(...) convierte ese texto en un objeto JavaScript utilizable.
+
+La variable usuario contiene el usuario actual:
+
+let usuario = usuarioGuardado();
+
+ActualizarSesion():
+
+1. Lee nuevamente localStorage.
+2. Decide si hay una sesion autentica.
+3. Muestra u oculta la navegacion y los datos de sesion.
+4. Aplica solo-admin o solo-usuario segun el rol.
+5. Envía al administrador a admin-libros.
+6. Envia al usuario normal a catalogo.
+7. Sin sesion, desactiva todas las vistas y activa auth.
+
+Esto corrige el problema por el cual despues de cerrar sesion podia aparecer informacion activa debajo del login.
+
+En el cierre de sesion se ejecuta:
+
+localStorage.removeItem('token');
+localStorage.removeItem('usuario');
+
+La funcion actualizarSesion() vuelve a configurar la interfaz en modo publico.
+
+
+5. API CENTRAL EN EL FRONTEND
+
+La funcion api(ruta, metodo='GET', cuerpo) concentra todas las llamadas HTTP.
+
+Su mecanismo es:
+
+1. Crear un encabezado Content-Type application/json.
+2. Si existe token, agregar Authorization: Bearer <token>.
+3. Ejecutar fetch().
+4. Leer la respuesta como JSON.
+5. Lanzar un error si el servidor responde fuera de 200-299.
+6. Devolver los datos procesados.
+
+Ejemplo conceptual de llamada:
+
+api('/libros', 'GET')
+api('/libros/4', 'DELETE')
+api('/prestamos', 'POST', { libro_id: 4 })
+
+El tercer parametro solamente se usa en POST y PUT. JSON.stringify(cuerpo) convierte el objeto JavaScript en texto JSON para el servidor.
+
+Metodos HTTP usados:
+
+- GET: consultar datos.
+- POST: crear registros o iniciar sesion.
+- PUT: actualizar datos.
+- DELETE: eliminar datos.
+
+
+6. SEGURIDAD DEL SERVIDOR
+
+verificarToken(req, res, next)
+
+Ubicacion: src/middlewares/auth.js
+
+1. Lee req.headers.authorization.
+2. Exige el formato Bearer <token>.
+3. Extrae el token eliminando las siete letras iniciales de "Bearer ".
+4. jwt.verify() valida firma y caducidad.
+5. Si es valido, guarda los datos en req.user.
+6. next() permite continuar hacia el controlador.
+
+Si no hay token o es invalido, responde 401.
+
+soloAdmin(req, res, next)
+
+Comprueba req.user.rol === 'admin'.
+
+- Rol correcto: next() continua.
+- Rol incorrecto: responde 403.
+
+Estas funciones son middleware: se ejecutan entre la peticion y el controlador. Las rutas las combinan asi:
+
+r.put('/:id', verificarToken, soloAdmin, c.actualizar)
+
+Esta ruta requiere primero un usuario autenticado y luego permisos administrativos.
+
+bcrypt.hash()
+
+Convierte una contraseña real en una cadena cifrada de una sola via para almacenarla.
+La cifra incluye sal aleatoria, por eso el texto cifrado nunca debe coincidir exactamente.
+
+bcrypt.compare()
+
+Compara una contraseña escrita al iniciar sesion con el hash almacenado.
+
+JWT
+
+jwt.sign() crea el token al iniciar sesion.
+jwt.verify() lo valida en cada ruta protegida.
+El token expira despues de cuatro horas, segun expiresIn: '4h'.
+
+
+7. RUTAS Y CONTROLADORES
+
+Las rutas no contienen toda la logica. Solamente indican direccion, metodo y middleware.
+
+La logica real esta en los controladores.
+
+AUTENTICACION
+
+POST /auth/register
+- register(), auth.controller.js
+- Valida nombre, correo y contraseña.
+- Exige una contraseña de al menos seis caracteres.
+- Normaliza correo a minusculas.
+- Comprueba si ya existe.
+- Genera hash con bcrypt.
+- Crea el usuario con rol usuario.
+
+POST /auth/login
+- login(), auth.controller.js
+- Busca el correo normalizado.
+- Compara la contraseña con bcrypt.compare().
+- Crea un JWT con id y rol.
+- Devuelve token y datos básicos.
+
+Ejemplos en la interfaz:
+- Registro muestra cuenta creada y vuelve a Iniciar sesion.
+- Login correcto cambia automaticamente la interfaz segun el rol.
+- Credenciales incorrectas muestran el mensaje bajo el formulario.
+
+LIBROS
+
+GET /libros
+- listar(), libros.controller.js
+- Acepta titulo como query string.
+- La busqueda usa Op.like con porcentajes para buscar coincidencias parciales.
+- Ordena los resultados por titulo.
+
+POST /libros
+- crear(), libros.controller.js
+- Solo lo puede ejecutar un administrador.
+- Crea el libro recibido en req.body.
+- Devuelve HTTP 201 si se crea.
+
+PUT /libros/:id
+- actualizar(), libros.controller.js
+- Busca el registro por id.
+- libro.update(req.body) modifica los campos enviados.
+
+DELETE /libros/:id
+- eliminar(), libros.controller.js
+- Busca el libro.
+- libro.destroy() lo elimina.
+
+Ejemplo visible:
+- Gestionar libros muestra formulario y tabla.
+- Editar llena el formulario con los datos existentes.
+- Guardar crea o modifica segun si existe el id oculto.
+- Eliminar solicita confirmacion antes de llamar DELETE.
+
+USUARIOS
+
+GET /usuarios
+- listar(), usuarios.controller.js
+- Solo es visible para administradores.
+- Excluye la contraseña mediante attributes.
+
+PUT /usuarios/:id
+- actualizar(), usuarios.controller.js
+- Valida nombre y rol.
+- Actualiza solamente nombre y rol.
+- No permite cambiar contraseñas desde esta ruta.
+
+DELETE /usuarios/:id
+- eliminar(), usuarios.controller.js
+- Impide que el administrador elimine su propia cuenta.
+
+PRESTAMOS
+
+POST /prestamos
+- solicitar(), prestamos.controller.js
+- Validar Numero entero positivo.
+- Verifica existencia y stock del libro.
+- Busca si ya existe pendiente o prestado.
+- Genera codigo aleatorio de ocho caracteres.
+- Crea un registro pendiente.
+
+GET /prestamos
+- listar(), prestamos.controller.js
+- Usuario normal: solamente sus propios registros.
+- Administrador: todos los prestamos.
+- Include carga Libro y Usuario relacionados.
+- Ordena desde el id mas reciente.
+
+PUT /prestamos/:id/aprobar
+- aprobar(), prestamos.controller.js
+- Solo administradores.
+- Pasa de pendiente a prestado.
+- Registra fecha_prestamo.
+- Reduce la cantidad disponible.
+
+PUT /prestamos/:id/devolver
+- devolver(), prestamos.controller.js
+- Solo administradores.
+- Pasa de prestado a devuelto.
+- Registra fecha_devolucion.
+- Aumenta la cantidad disponible.
+
+
+8. PATRONES REPETITIVOS: MAP, JOIN, HTML DINAMICO
+
+cargarCatalogo(), cargarPrestamos(), cargarLibrosAdmin() y cargarUsuarios() siguen el mismo modelo:
+
+1. Ejecutan una llamada api().
+2. Reciben un arreglo.
+3. Recorren el arreglo con map().
+4. Convierten cada objeto en una fila o tarjeta HTML.
+5. Usan join('') para formar una cadena completa.
+6. Asignan esa cadena al innerHTML del contenedor.
+7. Capturan errores con try/catch.
+
+Ejemplo de cargarCatalogo():
+
+libros.map((libro) => `
+  <article class="libro">
+    <h3>${escaparHtml(libro.titulo)}</h3>
+  </article>
+`).join('');
+
+Cada libro crea una tarjeta independiente. join('') elimina separadores e une todas las tarjetas.
+
+Ejemplo de cargarUsuarios():
+
+usuarios.map((usuarioItem) => `<tr>...</tr>`).join('');
+
+Cada usuario crea una fila <tr> dentro de tbody-usuarios.
+
+Esta repeticion tambien permite conservar el mismo patron en tabla, tarjetas o estados. Cambiar un encabezado o una fila normalmente requiere modificar solo su funcion map.
+
+
+9. INTERPOLACION, ESCAPE Y ATRIBUTOS DATA
+
+Los backticks permiten crear plantillas HTML:
+
+`<td>${escaparHtml(libro.titulo)}</td>`
+
+${...} inserta una expresion JavaScript dentro del texto HTML.
+
+escaparHtml() crea un div temporal y usa textContent. Con esto se transforma texto potencialmente peligroso en texto seguro para HTML.
+
+escaparAtributo() reutiliza ese escape y convierte comillas dobles en &quot; antes de colocarlas dentro de data-*.
+
+Los atributos data sirven para guardar informacion en botones:
+
+data-solicitar="4"
+data-editar-libro="7"
+data-eliminar-usuario="2"
+data-aprobar="9"
+
+event.target.closest('[data-solicitar]')
+
+Busca desde el elemento pulsado hacia arriba y encuentra el elemento con ese atributo. Permite usar botones generados con innerHTML y centralizar acciones en un solo document.addEventListener.
+
+
+10. MANEJO CENTRALIZADO DE CLICKS
+
+document.addEventListener('click', async (event) => {...})
+
+Es un delegado de eventos:
+
+- No se agrega un evento individual a cada boton generado dinamicamente.
+- Todos los clics llegan al document.
+- closest() detecta que boton fue pulsado.
+- Luego se ejecuta la accion relacionada.
+
+Acciones reconocidas:
+
+- [data-solicitar]: solicita prestamo.
+- [data-aprobar]: aprueba prestamo.
+- [data-devolver]: devuelve prestamo.
+- [data-editar-libro]: rellena el formulario de libro.
+- [data-eliminar-libro]: elimina un libro.
+- [data-editar-usuario]: cambia el nombre.
+- [data-eliminar-usuario]: elimina un usuario.
+
+Ejemplo visible:
+1. Se crea una tabla de usuarios.
+2. Cada fila obtiene data-editar-usuario y data-eliminar-usuario.
+3. Al pulsar Editar, document detecta el atributo.
+4. prompt() obtiene el nuevo nombre.
+5. api() envia PUT /usuarios/:id.
+6. cargarUsuarios() vuelve a dibujar la tabla.
+
+
+11. FORMULARIOS Y FORMData
+
+En el formulario de libros se usa:
+
+const datos = Object.fromEntries(new FormData(formulario));
+
+Esta expresion convierte los campos con atributo name en un objeto:
+
+{
+  titulo: "Texto",
+  autor: "Autor",
+  categoria: "Novela",
+  cantidad: 3
+}
+
+El id oculto permite distinguir dos operaciones:
+
+- Sin id: POST /libros.
+- Con id: PUT /libros/:id.
+
+event.preventDefault() impide que el navegador recargue toda la pagina al enviar el formulario.
+
+formulario.reset() limpia los campos.
+
+Ejemplo visible:
+- Guardar un libro nuevo agrega una fila sin recargar.
+- Editar usa actualizarSesion y cargarLibrosAdmin despues de guardar.
+
+
+12. ASYNC, AWAIT, TRY, CATCH
+
+async hace que una funcion pueda esperar operaciones.
+
+await api(...) pausa esa funcion hasta que la respuesta termine.
+
+No detiene todo el navegador ni todo el servidor; solamente espera ese flujo.
+
+try ejecuta el codigo normal.
+catch recibe el error si algo falla.
+
+Ejemplo:
+
+try {
+  await api('/usuarios');
+} catch (error) {
+  alert(error.message);
+}
+
+Esto evita que la interfaz suponga que una accion tuvo exito si el servidor rechazó la peticion.
+
+
+13. MODELOS SEQUELIZE
+
+src/models/index.js usa sequelize.define() para representar tablas.
+
+Usuario:
+- nombre
+- email
+- password
+- rol: admin o usuario
+
+Libro:
+- titulo
+- autor
+- categoria
+- cantidad
+
+Prestamo:
+- codigo
+- fecha_prestamo
+- fecha_devolucion
+- estado: pendiente, prestado o devuelto
+
+timestamps: false evita campos automaticos como createdAt y updatedAt.
+
+DataTypes.INTEGER, STRING y ENUM limitan el tipo esperado.
+allowNull: false impide valores nulos.
+validate: { min: 0 } impide cantidades negativas.
+
+Relaciones:
+
+Usuario.hasMany(Prestamo, { foreignKey: 'usuario_id' })
+Libro.hasMany(Prestamo, { foreignKey: 'libro_id' })
+Prestamo.belongsTo(Usuario, { foreignKey: 'usuario_id' })
+Prestamo.belongsTo(Libro, { foreignKey: 'libro_id' })
+
+Estas relaciones permiten cargar Usuario y Libro dentro de cada prestamo mediante include.
+
+
+14. TRANSACCIONES DE PRESTAMOS
+
+Al aprobar o devolver se usa sequelize.transaction().
+
+Una transaccion agrupa varias consultas. Si todas funcionan, commit() confirma los cambios. Si ocurre un error, rollback() revierte todo.
+
+Aprobar:
+1. Busca el prestamo con bloqueo UPDATE.
+2. Comprueba que este pendiente.
+3. Busca el libro.
+4. Comprueba stock.
+5. Disminuye cantidad.
+6. Cambia estado y fecha.
+7. Confirma con commit().
+
+Devolver:
+1. Busca el prestamo.
+2. Comprueba que este prestado.
+3. Aumenta cantidad.
+4. Cambia estado y fecha.
+5. Confirma con commit().
+
+Las operaciones quedan protegidas frente a cambios simultaneos mediante transaccion, findByPk() dentro de la transaccion y t.LOCK.UPDATE.
+
+
+15. ROLES EN LA INTERFAZ
+
+Las clases:
+
+- solo-admin: solamente se muestran para administrador.
+- solo-usuario: solamente se muestran para usuario normal.
+- activo: indica la vista o boton seleccionado.
+- oculto: oculta sin excepciones con display: none !important.
+- vista: oculta una seccion completa.
+
+Administrador puede ver:
+- Libros.
+- Prestamos generales.
+- Usuarios.
+
+Administrador no puede ver:
+- Catalogo.
+- Mis prestamos.
+
+Usuario normal puede ver:
+- Catalogo.
+- Mis prestamos.
+
+Usuario normal no puede ver:
+- Libros administrativos.
+- Prestamos generales.
+- Usuarios.
+
+
+16. CODIGOS HTTP QUE APARECEN
+
+- 200: consulta o actualizacion correcta.
+- 201: registro creado correctamente.
+- 400: datos invalidos.
+- 401: falta el token, es invalido o expiro.
+- 403: autenticado pero sin permisos.
+- 409: conflicto, por ejemplo correo ya registrado.
+- 500: error interno inesperado.
+- 404: recurso inexistente.
+
+
+17. EJEMPLOS PRACTICOS COMPLETOS
+
+Registrar y entrar como usuario:
+1. Pulsar Registrarse.
+2. Enviar nombre, correo y contraseña.
+3. POST /auth/register crea el usuario.
+4. Volver al formulario login.
+5. POST /auth/login crea el JWT.
+6. El navegador lo guarda.
+7. actualizarSesion() muestra Catalogo.
+
+Solicitar un libro:
+1. Usuario pulsa Solicitar prestamo.
+2. document detecta data-solicitar.
+3. POST /prestamos envia { libro_id }.
+4. solicitar() crea el registro pendiente.
+5. La interfaz vuelve a cargar el catalogo.
+
+Aprobar:
+1. Administrador abre Prestamos.
+2. Pulsa Aprobar.
+3. PUT /prestamos/:id/aprobar.
+4. El backend usa transaccion.
+5. Cambia estado a prestado y reduce stock.
+6. ejecutarAccion() recarga prestamos y libros.
+
+Editar un libro:
+1. Administrador pulsa Editar en la fila.
+2. Los data-* llenan el formulario.
+3. Guardar detecta el id oculto.
+4. PUT /libros/:id actualiza.
+5. cargarLibrosAdmin() vuelve a pintar la tabla.
+
+Cerrar sesion:
+1. Se eliminan token y usuario.
+2. Se desactiva toda vista privada.
+3. auth recibe la clase activa.
+4. Ya no aparecen administracion ni datos personales.
+
+
+18. COMANDOS
+
+Instalar dependencias:
+npm install
+
+Iniciar:
+npm start
+
+Iniciar con recarga automatica:
+npm run dev
+
+URL:
+http://localhost:3000
+
